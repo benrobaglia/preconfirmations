@@ -4,12 +4,14 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from utils import *
 
+DATA_PATH = "data/"
+
 # Sidebar Navigation
 st.sidebar.title("Navigation")
 pages = ["Presentation", "Eligibility Transactions", "Model Configuration"]
 page = st.sidebar.radio("", pages)
 
-# 1️⃣ Presentation Page
+# Landing page
 if page == "Presentation":
     st.title("Chorus One's Preconfirmation Pricing Model")
     st.markdown("""
@@ -25,7 +27,7 @@ elif page == "Eligibility Transactions":
         submitted = st.form_submit_button("Run")
     
     if submitted:
-        tx_data = pd.read_csv('/home/research_group/preconfirmations/txs_sample.csv')
+        tx_data = pd.read_csv(f'{DATA_PATH}txs_sample.csv')
         eligible_txs = tx_data.loc[(tx_data['position'] > start_position) & (tx_data['position'] < end_position)]
         
         st.header("Key Metrics")
@@ -53,8 +55,8 @@ elif page == "Model Configuration":
     st.header("3. Models Configuration")
     
     lags = np.arange(1, 33, 1)
-    eligible_txs = pd.read_csv('/home/research_group/preconfirmations/eligible_txs_sample.csv')
-    block_features = pd.read_csv('/home/research_group/preconfirmations/block_features.csv')
+    eligible_txs = pd.read_csv(f'{DATA_PATH}eligible_txs_sample.csv')
+    block_features = pd.read_csv(f'{DATA_PATH}block_features.csv')
     agg_df = build_agg_features(eligible_txs, lags)
     final_df = eligible_txs.merge(agg_df, on=['block_number', 'tx_topology']).merge(block_features, on='block_number')
 
