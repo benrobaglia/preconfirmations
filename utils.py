@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error, mean_absolute_error
+import plotly.graph_objects as go
 
 
 def compute_metrics(y_results):
@@ -215,3 +216,82 @@ def train_linear_regression(df, features, features_lag, lags, training_threshold
     results['gas_used'] = test_data['gas_used'].reset_index(drop=True)
     return results, r2
 
+def generate_placeholder():
+    
+    def random_value():
+        return np.random.uniform(0.01, 30)
+
+    # Dictionary with random values
+    randomized_dict = {
+        'Approve': {
+            'avg_preconfirmed_errors': random_value(),
+            'preconfirmations_eligible': np.random.uniform(0, 1),
+            'preconf_value': random_value()
+        },
+        'EthTransfer': {
+            'avg_preconfirmed_errors': random_value(),
+            'preconfirmations_eligible': np.random.uniform(0, 1),
+            'preconf_value': random_value()
+        },
+        'Other': {
+            'avg_preconfirmed_errors': random_value(),
+            'preconfirmations_eligible': np.random.uniform(0, 1),
+            'preconf_value': random_value()
+        },
+        'SetApprovalForAll': {
+            'avg_preconfirmed_errors': random_value(),
+            'preconfirmations_eligible': np.random.uniform(0, 1),
+            'preconf_value': random_value()
+        },
+        'Transfer': {
+            'avg_preconfirmed_errors': random_value(),
+            'preconfirmations_eligible': np.random.uniform(0, 1),
+            'preconf_value': random_value()
+        },
+        'TransferFrom': {
+            'avg_preconfirmed_errors': random_value(),
+            'preconfirmations_eligible': np.random.uniform(0, 1),
+            'preconf_value': random_value()
+        },
+        'TransformERC20': {
+            'avg_preconfirmed_errors': random_value(),
+            'preconfirmations_eligible': np.random.uniform(0, 1),
+            'preconf_value': random_value()
+        },
+        'Withdraw': {
+            'avg_preconfirmed_errors': random_value(),
+            'preconfirmations_eligible': np.random.uniform(0, 1),
+            'preconf_value': random_value()
+        }
+    }
+
+    return randomized_dict
+
+# Function to plot grouped bar chart
+def plot_grouped_bar(value_to_plot, q_pl, lr_pl, ml_pl):
+    tx_topologies = list(q_pl.keys())
+    q_values = [q_pl[tx][value_to_plot] for tx in tx_topologies]
+    lr_values = [lr_pl[tx][value_to_plot] for tx in tx_topologies]
+    ml_values = [ml_pl[tx][value_to_plot] for tx in tx_topologies]
+
+    trace_q = go.Bar(x=tx_topologies, y=q_values, name='Q PL')
+    trace_lr = go.Bar(x=tx_topologies, y=lr_values, name='LR PL')
+    trace_ml = go.Bar(x=tx_topologies, y=ml_values, name='ML PL')
+
+    fig = go.Figure(data=[trace_q, trace_lr, trace_ml])
+    fig.update_layout(barmode='group')
+
+    return fig
+
+def agg_pf_per_gas_per_position(tx_data):
+    aggregated = tx_data.groupby('position').agg(
+        mean_priority_fee=('priority_fee_per_gas', 'mean'),
+        min_priority_fee=('priority_fee_per_gas', 'min'),
+        max_priority_fee=('priority_fee_per_gas', 'max'),
+        median_priority_fee=('priority_fee_per_gas', 'median'),
+        quantile_25_priority_fee=('priority_fee_per_gas', lambda x: x.quantile(0.25)),
+        quantile_75_priority_fee=('priority_fee_per_gas', lambda x: x.quantile(0.75)),
+        quantile_95_priority_fee=('priority_fee_per_gas', lambda x: x.quantile(0.95))
+    )  
+    aggregated *= 1e9
+    return aggregated.reset_index()

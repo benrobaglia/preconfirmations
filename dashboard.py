@@ -1,14 +1,14 @@
 import streamlit as st
 import pandas as pd
 import seaborn as sns
-import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 from utils import *
 
 DATA_PATH = "data/"
 
 # Sidebar Navigation
 st.sidebar.title("Navigation")
-pages = ["Presentation", "Eligibility Transactions", "Model Configuration"]
+pages = ["Presentation", "Eligible Transactions", "Model Configuration"]
 page = st.sidebar.radio("", pages)
 
 # Landing page
@@ -17,42 +17,118 @@ if page == "Presentation":
     st.markdown("""
     Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas pulvinar sapien quam, at vestibulum lacus egestas ut. Maecenas in blandit nisl. Nullam tincidunt, nisi vel blandit varius, nisi tortor hendrerit felis, ac condimentum mauris orci ut magna. In et mattis est. Suspendisse convallis in magna non bibendum. Praesent id nisi blandit, hendrerit lectus nec, ornare odio. Sed velit sapien, eleifend eget nibh eu, aliquam dignissim diam. Morbi viverra diam id est posuere sagittis. Mauris euismod massa sed magna euismod, quis scelerisque dolor vehicula. Aliquam semper lectus sem, quis ullamcorper nisl finibus nec. Quisque vel semper orci, ut viverra tortor. Phasellus varius enim non pharetra viverra. In vehicula vehicula nunc in facilisis. Sed tortor libero, egestas dapibus ullamcorper ut, porttitor et nisi. In eget tellus pharetra odio luctus gravida.
     """)
+    
 
-elif page == "Eligibility Transactions":
+elif page == "Eligible Transactions":
     st.header('Preconfirmable Transactions')
     
+    tx_data = pd.read_csv(f'{DATA_PATH}txs_sample.csv')
+    aggregated = agg_pf_per_gas_per_position(tx_data)
+    
+    # Reduce the plot
+    # aggregated = aggregated[:300]
+        
+    st.subheader("Priority Fee Metrics for Each Position")
+
+    positions = aggregated['position']
+    metrics = {
+        'Mean': aggregated['mean_priority_fee'],
+        'Min': aggregated['min_priority_fee'],
+        'Max': aggregated['max_priority_fee'],
+        'Median': aggregated['median_priority_fee'],
+        '25th Percentile': aggregated['quantile_25_priority_fee'],
+        '75th Percentile': aggregated['quantile_75_priority_fee'],
+        '95th Percentile': aggregated['quantile_95_priority_fee']
+    }
+
+    # Create Traces
+    traces = []
+    for metric, values in metrics.items():
+        if metric in ['Max', '95th Percentile']:
+            traces.append(go.Scatter(mode='lines', name=metric, x=positions, y=values, visible='legendonly'))
+            
+        else:
+            traces.append(go.Scatter(mode='lines', name=metric, x=positions, y=values))
+
+    fig = go.Figure(data=traces)
+    fig.update_layout(
+            title=dict(
+                            text="Aggregated Metrics for Priority Fee per Gas by Position",
+                            x=0,  # Aligns to the left
+                            xanchor='left'  # Ensures the text is aligned from the left
+                        ),
+        xaxis_title="Position",
+        yaxis_title="Priority Fee per Gas (Gwei)",
+        barmode='group',
+        bargap=0.2,
+        height=600
+    )
+
+    # Display Plot
+    st.plotly_chart(fig)
+
+    st.subheader("Preconfirmation Eligibility based on the Block Position")
+
+    default_start_position = 10
+    default_end_position = 150
+    eligible_txs = tx_data.loc[(tx_data['position'] > default_start_position) & (tx_data['position'] < default_end_position)]
+
+
     with st.form(key="eligibility_form"):
-        start_position = st.slider('Start Position', min_value=1, max_value=200, value=10, step=1, help="Set the starting position for eligible transactions.")
-        end_position = st.slider('End Position', min_value=1, max_value=200, value=150, step=1, help="Set the ending position for eligible transactions.")
+        start_position = st.slider('Start Position', min_value=1, max_value=200, value=default_start_position, step=1, help="Set the starting position for eligible transactions.")
+        end_position = st.slider('End Position', min_value=1, max_value=200, value=default_end_position, step=1, help="Set the ending position for eligible transactions.")
         submitted = st.form_submit_button("Run")
     
     if submitted:
-        tx_data = pd.read_csv(f'{DATA_PATH}txs_sample.csv')
         eligible_txs = tx_data.loc[(tx_data['position'] > start_position) & (tx_data['position'] < end_position)]
-        
-        st.header("Key Metrics")
-        percentage_of_eligible_txs = len(eligible_txs) / len(tx_data) if len(tx_data) > 0 else 0
-        st.metric(label="Percentage of Eligible Transactions for Preconfirmations", value=f"{percentage_of_eligible_txs:.2%}", help="This shows the percentage of transactions that are eligible for preconfirmations based on the position range.")
-        
-        st.header("Priority Fee Distribution for Eligible Transactions")
-        fig, ax = plt.subplots()
-        sns.histplot(eligible_txs['priority_fee_per_gas'].loc[eligible_txs['priority_fee_per_gas'] < 10e-9] * 1e9, bins=20, ax=ax)
-        ax.set_xlabel("Priority Fee per Gas (in Gwei)")
-        ax.set_title("Distribution of Priority Fee per Gas")
-        st.pyplot(fig)
-        
-        csv = eligible_txs.to_csv(index=False)
-        st.download_button(
-            label="Download Eligible Transactions as CSV",
-            data=csv,
-            file_name='eligible_transactions.csv',
-            mime='text/csv',
-        )
+                
+    st.header("Key Metrics")
+    percentage_of_eligible_txs = len(eligible_txs) / len(tx_data) if len(tx_data) > 0 else 0
+    st.metric(
+        label="Percentage of Eligible Transactions for Preconfirmations", 
+        value=f"{percentage_of_eligible_txs:.2%}", 
+        help="This shows the percentage of transactions that are eligible for preconfirmations based on the position range."
+    )
 
+    st.header("Priority Fee Distribution for Eligible Transactions")
+
+    filtered_priority_fees = eligible_txs['priority_fee_per_gas'] * 1e9  # Convert to Gwei
+
+    fig = go.Figure()
+
+    fig.add_trace(go.Histogram(
+        x=filtered_priority_fees,
+        nbinsx=200,  # Number of bins
+        marker_color='rgb(26, 118, 255)',
+        opacity=0.75
+    ))
+
+    fig.update_layout(
+        title="Distribution of Priority Fee per Gas",
+        xaxis_title="Priority Fee per Gas (in Gwei)",
+        yaxis_title="Count",
+        title_x=0.5,  # Center the title
+        bargap=0.2,  # Space between bars
+        bargroupgap=0.1  # Space between groups (for multiple histograms)
+    )
+
+    # Streamlit app
+    st.plotly_chart(fig)
+
+
+    csv = eligible_txs.to_csv(index=False)
+    st.download_button(
+        label="Download Eligible Transactions as CSV",
+        data=csv,
+        file_name='eligible_transactions.csv',
+        mime='text/csv',
+    )
+
+    
 
 # 3️⃣ Model Configuration Page
 elif page == "Model Configuration":
-    st.header("3. Models Configuration")
+    st.header("3. Model Configurations")
     
     lags = np.arange(1, 33, 1)
     eligible_txs = pd.read_csv(f'{DATA_PATH}eligible_txs_sample.csv')
@@ -145,7 +221,17 @@ elif page == "Model Configuration":
     print(f"lr_features: {st.session_state['lr_features']}")
     print(f"max_window_lr: {st.session_state['max_window_lr']}")
     print(f"lr_training_threshold: {st.session_state['lr_training_threshold']}")
-        
+    
+    st.write("")  
+    st.write("")  
+    st.write("")  
+    st.write("")  
+    st.write("")  
+    st.write("")  
+    st.write("")  
+    st.write("")  
+    st.header("Simulation Results")
+    
     quantile_lags = np.arange(1, st.session_state['max_window'])
     quantile_estimator = rolling_mean_block_pf_estimator(final_df, f"q{st.session_state['quantile']}", quantile_lags)
     global_quantile_metrics, groups_quantile_metrics = compute_metrics(quantile_estimator)
@@ -168,3 +254,17 @@ elif page == "Model Configuration":
     
     st.dataframe(global_results)
     
+    # Plot results
+
+    # Extract data for plotting
+    lr_pl = generate_placeholder()
+    ml_pl = generate_placeholder()
+    
+    # Streamlit app
+    st.title('Grouped Bar Chart')
+    value_to_plot = st.selectbox('Select a value to plot', ['avg_preconfirmed_errors', 'preconfirmations_eligible', 'preconf_value'])
+    st.write('You selected:', value_to_plot)
+
+    fig = plot_grouped_bar(value_to_plot, groups_quantile_metrics, lr_pl, ml_pl)
+    st.plotly_chart(fig)
+    print("finished")
