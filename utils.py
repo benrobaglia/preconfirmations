@@ -3,49 +3,66 @@ import pandas as pd
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 import plotly.graph_objects as go
+from sklearn.ensemble import RandomForestRegressor
 
 
 def compute_metrics(y_results):
     """
     Columns in y_results (already filtered by eligible txs):
-    y_true | y_pred | block_number | eligible | tx_topology | gas_used
+    priority_fee_per_gas | y_true | y_pred | block_number | eligible | tx_topology | gas_used
     """
     # Preconf txs
-    preconf_txs = y_results.loc[y_results['y_true'] > y_results['y_pred']]
+    preconf_txs = y_results.loc[y_results['priority_fee_per_gas'] > y_results['y_pred']]
     
     # MAE (Mean Absolute Error)
     mae = np.mean(np.abs(y_results['y_true'] - y_results['y_pred']))
     
     # MSE (Mean Squared Error)
-    mse = np.mean((y_results['y_true'] - y_results['y_pred']) ** 2)
+    # mse = np.mean((y_results['y_true'] - y_results['y_pred']) ** 2)
 
     # Avg of differences (y_true - y_pred)
-    avg_preconfirmed_errors = (y_results['y_true'] - y_results['y_pred']).clip(lower=0).mean()
+    avg_preconfirmed_errors = (y_results['priority_fee_per_gas'] - y_results['y_pred']).clip(lower=0).mean()
 
     # Avg nb of preconfirmations (when y_true > y_pred)
-    preconfirmations_eligible = (y_results['y_true'] > y_results['y_pred']).mean()
-
-    # Total nb of preconf
-    preconfirmations = len(preconf_txs)
+    preconfirmations_eligible = (y_results['priority_fee_per_gas'] > y_results['y_pred']).mean()
     
     # Preconfirmable value
-    preconf_value = (preconf_txs['y_true'] * preconf_txs['gas_used']).sum()
+    preconf_value = (preconf_txs['priority_fee_per_gas'] * preconf_txs['gas_used']).sum()
     
     # Compute the metrics for each tx_topology group
     grouped_metrics = y_results.groupby('tx_topology').apply(lambda group: {
-        'avg_preconfirmed_errors': (group['y_true'] - group['y_pred']).clip(lower=0).mean() * 1e9,
-        'preconfirmations_eligible': (group['y_true'] > group['y_pred']).mean(),
-        'preconf_value': group.loc[group.y_true > group.y_pred][['y_true', 'gas_used']].prod(axis=1).sum()
+        'avg_preconfirmed_errors': (group['priority_fee_per_gas'] - group['y_pred']).clip(lower=0).mean() * 1e9,
+        'preconfirmations_eligible': (group['priority_fee_per_gas'] > group['y_pred']).mean(),
+        'preconf_value': group.loc[group.priority_fee_per_gas > group.y_pred][['priority_fee_per_gas', 'gas_used']].prod(axis=1).sum()
     }).to_dict()
     
     metrics = {
         'mae': mae * 1e9,
         'avg_preconfirmed_errors': avg_preconfirmed_errors * 1e9,
-        'preconfirmations_eligible': preconfirmations_eligible,
+        'preconfirmations_eligible': preconfirmations_eligible*100,
         'preconf_value': preconf_value
     }
 
     return metrics, grouped_metrics
+
+def compute_rolling_metrics(y_results):
+    y_results = y_results.sort_values(by='block_number').reset_index(drop=True)
+    y_results['abs_error'] = np.abs(y_results['priority_fee_per_gas'] * 1e9 - y_results['y_pred'] * 1e9)
+    y_results['preconf_value'] = np.clip(y_results['priority_fee_per_gas'] - y_results['y_pred'], 0, None)
+    y_results['preconf_eligible'] = (y_results['priority_fee_per_gas'] > y_results['y_pred']).astype(int)
+    y_results['cumulative_abs_error'] = y_results['abs_error'].cumsum()
+    y_results['cumulative_preconf_value'] = y_results['preconf_value'].cumsum()
+    y_results['cumulative_preconf_eligible'] = y_results['preconf_eligible'].cumsum()
+    y_results['cumulative_transaction_count'] = np.arange(1, len(y_results) + 1)
+    block_agg = y_results.groupby('block_number').last()
+
+    block_agg['expanding_mae'] = block_agg['cumulative_abs_error'] / block_agg['cumulative_transaction_count']
+    block_agg['expanding_preconf_value'] = block_agg['cumulative_preconf_value']
+    block_agg['expanding_preconfirmations_eligible'] = block_agg['cumulative_preconf_eligible'] / block_agg['cumulative_transaction_count']
+
+    rolling_metrics = block_agg[['expanding_mae', 'expanding_preconf_value', 'expanding_preconfirmations_eligible']].reset_index()
+
+    return rolling_metrics
 
 
 def compute_lags_stat(df, feature='priority_fee_per_gas', statistic = 'mean', lags = [1, 2, 3, 4, 5]):
@@ -99,8 +116,9 @@ def last_block_pf_estimator(df, stat):
 
 def rolling_mean_block_pf_estimator(df, stat, lags):
     df[f'{stat}_pfpg_rolling_{len(lags)}'] = df[[f'{stat}_priority_fee_per_gas_lag_{l}' for l in lags]].mean(1)
-    df = df.rename(columns={f'{stat}_pfpg_rolling_{len(lags)}': 'y_pred', 'priority_fee_per_gas': 'y_true'})
-    return df[['block_number', 'y_true', 'y_pred', 'tx_topology', 'gas_used']].dropna().reset_index(drop=True)
+    df['y_true'] = df[f'{stat}_priority_fee_per_gas']
+    df = df.rename(columns={f'{stat}_pfpg_rolling_{len(lags)}': 'y_pred'})
+    return df[['block_number', 'priority_fee_per_gas', 'y_true', 'y_pred', 'tx_topology', 'gas_used']].dropna().reset_index(drop=True)
 
 
 def build_block_features(df):
@@ -108,8 +126,8 @@ def build_block_features(df):
         block_gas_used=('gas_used', 'sum'),
         tx_count=('gas_used', 'size')
     ).reset_index()
-    block_metrics['block_gas_used_log_1'] = block_metrics['block_gas_used'].shift(1)
-    block_metrics['tx_count_log_1'] = block_metrics['tx_count'].shift(1)
+    block_metrics['block_gas_used_lag_1'] = block_metrics['block_gas_used'].shift(1)
+    block_metrics['tx_count_lag_1'] = block_metrics['tx_count'].shift(1)
     return block_metrics
 
 
@@ -159,62 +177,44 @@ def build_agg_features(df, lags=[1, 2, 3, 4, 5]):
     # Reset index to flatten the index into columns
     return final_agg.reset_index()
 
-
-
-def train_linear_regression(df, features, features_lag, lags, training_threshold, target='priority_fee_per_gas'):
-    """
-    Trains a Linear Regression model using lagged features.
+def train_linear_regression_one_hot(df_agg, features, training_threshold, target='q50_priority_fee_per_gas'):
+    df = pd.get_dummies(df_agg, columns=['tx_topology'], drop_first=True)
+    df['tx_topology'] = df_agg['tx_topology']
     
-    Args:
-        df (DataFrame): The DataFrame containing all data with features and lags.
-        features (list): List of base features to be used as predictors.
-        lags (list): List of lags to be applied to each feature.
-        training_threshold (int): The block number threshold to split the train and test data.
-        target (str): The name of the target variable column (default is 'priority_fee_per_gas').
-        
-    Returns:
-        dict: A dictionary containing the trained model, predictions, and metrics.
-    """
-    # 1️⃣ Generate the feature columns from features + lags
-    feature_columns = [f'{feature}_lag_{lag}' for feature in features_lag for lag in lags]
-    feature_columns += features
+    feature_columns = features + [col for col in df.columns if 'tx_topology_' in col]
     
-    # Ensure that the required feature columns exist in the DataFrame
     missing_features = [col for col in feature_columns if col not in df.columns]
     if missing_features:
         raise ValueError(f"The following required features are missing from the DataFrame: {missing_features}")
     
-    # 2️⃣ Split the data into training and testing sets
-    train_data = df[df['block_number'] <= training_threshold]
-    test_data = df[df['block_number'] > training_threshold]
+    train_data = df[df['block_number'] <= training_threshold].dropna(subset=feature_columns + [target])
+    test_data = df[df['block_number'] > training_threshold].dropna(subset=feature_columns + [target])
     
-    # Remove any rows with NaN values (caused by shift() operations)
-    train_data = train_data.dropna(subset=feature_columns + [target])
-    test_data = test_data.dropna(subset=feature_columns + [target])
-    
-    # 3️⃣ Extract X (features) and y (target) for training and testing
     X_train = train_data[feature_columns]
     y_train = train_data[target]
     X_test = test_data[feature_columns]
     y_test = test_data[target]
     
-    # 4️⃣ Train the Linear Regression model
     model = LinearRegression()
     model.fit(X_train, y_train)
     
-    # 5️⃣ Make predictions on the test data
-    y_pred = model.predict(X_test)
+    y_train_pred = model.predict(X_train)
+    y_test_pred = model.predict(X_test)
     
-    r2 = model.score(X_test, y_test)
+    results_train = pd.DataFrame()
+    results_train['y_pred'] = y_train_pred
+    results_train['y_true'] = y_train.reset_index(drop=True)
+    results_train['block_number'] = train_data['block_number'].reset_index(drop=True)
+    results_train['tx_topology'] = train_data['tx_topology'].reset_index(drop=True)
     
-    # 7️⃣ Return the model, predictions, and metrics
-    results = pd.DataFrame()
-    results['y_pred'] = y_pred
-    results['y_true'] = y_test.reset_index(drop=True)
-    results['block_number'] = test_data['block_number'].reset_index(drop=True)
-    results['tx_topology'] = test_data['tx_topology'].reset_index(drop=True)
-    results['gas_used'] = test_data['gas_used'].reset_index(drop=True)
-    return results, r2
+    results_test = pd.DataFrame()
+    results_test['y_pred'] = y_test_pred
+    results_test['y_true'] = y_test.reset_index(drop=True)
+    results_test['block_number'] = test_data['block_number'].reset_index(drop=True)
+    results_test['tx_topology'] = test_data['tx_topology'].reset_index(drop=True)
+    
+    return results_test, results_train, model
+
 
 def generate_placeholder():
     
@@ -274,9 +274,9 @@ def plot_grouped_bar(value_to_plot, q_pl, lr_pl, ml_pl):
     lr_values = [lr_pl[tx][value_to_plot] for tx in tx_topologies]
     ml_values = [ml_pl[tx][value_to_plot] for tx in tx_topologies]
 
-    trace_q = go.Bar(x=tx_topologies, y=q_values, name='Q PL')
-    trace_lr = go.Bar(x=tx_topologies, y=lr_values, name='LR PL')
-    trace_ml = go.Bar(x=tx_topologies, y=ml_values, name='ML PL')
+    trace_q = go.Bar(x=tx_topologies, y=q_values, name='QH')
+    trace_lr = go.Bar(x=tx_topologies, y=lr_values, name='LR')
+    trace_ml = go.Bar(x=tx_topologies, y=ml_values, name='ML')
 
     fig = go.Figure(data=[trace_q, trace_lr, trace_ml])
     fig.update_layout(barmode='group')
@@ -295,3 +295,46 @@ def agg_pf_per_gas_per_position(tx_data):
     )  
     aggregated *= 1e9
     return aggregated.reset_index()
+
+
+def train_random_forest_one_hot(df_agg, features, training_threshold, target='q50_priority_fee_per_gas', params={'n_estimators': 100, "max_depth": 10}):
+    df = pd.get_dummies(df_agg, columns=['tx_topology'], drop_first=True)
+    df['tx_topology'] = df_agg['tx_topology']
+    
+    feature_columns = features + [col for col in df.columns if 'tx_topology_' in col]
+    df[[c for c in df.columns if 'priority_fee_per_gas' in c]] *= 1e9
+    
+    missing_features = [col for col in feature_columns if col not in df.columns]
+    if missing_features:
+        raise ValueError(f"The following required features are missing from the DataFrame: {missing_features}")
+        
+    train_data = df[df['block_number'] <= training_threshold].dropna(subset=feature_columns + [target])
+    test_data = df[df['block_number'] > training_threshold].dropna(subset=feature_columns + [target])
+    
+    X_train = train_data[feature_columns]
+    y_train = train_data[target]
+    X_test = test_data[feature_columns]
+    y_test = test_data[target]
+    
+    model = RandomForestRegressor(n_estimators=params['n_estimators'], max_depth=params['max_depth'])
+    model.fit(X_train, y_train)
+    
+    y_train_pred = model.predict(X_train)
+    y_test_pred = model.predict(X_test)
+    
+    results_train = pd.DataFrame()
+    results_train['y_pred'] = y_train_pred * 1e-9
+    results_train['y_true'] = y_train.reset_index(drop=True) * 1e-9
+    results_train['block_number'] = train_data['block_number'].reset_index(drop=True)
+    results_train['tx_topology'] = train_data['tx_topology'].reset_index(drop=True)
+    
+    results_test = pd.DataFrame()
+    results_test['y_pred'] = y_test_pred * 1e-9
+    results_test['y_true'] = y_test.reset_index(drop=True) * 1e-9
+    results_test['block_number'] = test_data['block_number'].reset_index(drop=True)
+    results_test['tx_topology'] = test_data['tx_topology'].reset_index(drop=True)
+    
+    return results_test, results_train, model
+
+def build_lag_features(target, lags):
+    return [f'{target}_lag_{lag}' for lag in lags]
