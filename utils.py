@@ -4,6 +4,7 @@ from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 import plotly.graph_objects as go
 from sklearn.ensemble import RandomForestRegressor
+from tqdm import tqdm
 
 
 def compute_metrics(y_results):
@@ -175,7 +176,36 @@ def build_agg_features(df, lags=[1, 2, 3, 4, 5]):
     final_agg = pd.concat([agg] + lagged_features, axis=1)
     
     # Reset index to flatten the index into columns
+    return final_agg.reset_index() 
+
+def build_agg_features2(df, lags=[1, 2, 3, 4, 5]):
+    quantiles = np.arange(0.1, 1, 0.1)
+    quantile_agg = (
+        df.groupby('block_number')['priority_fee_per_gas']
+        .quantile(quantiles)
+        .unstack(level=-1)
+    )
+    quantile_agg.columns = [f'q{int(quantile * 100)}_priority_fee_per_gas' for quantile in quantiles]
+    
+    additional_agg = df.groupby('block_number')['priority_fee_per_gas'].agg(
+        mean_priority_fee_per_gas='mean',
+        min_priority_fee_per_gas='min',
+        max_priority_fee_per_gas='max',
+        skew_priority_fee_per_gas='skew'
+    )
+    
+    agg = pd.concat([quantile_agg, additional_agg], axis=1)
+    
+    lagged_features = []
+    for lag in lags:
+        shifted_agg = agg.shift(lag)
+        shifted_agg.columns = [f'{col}_lag_{lag}' for col in shifted_agg.columns]
+        lagged_features.append(shifted_agg)
+    
+    final_agg = pd.concat([agg] + lagged_features, axis=1)
+    
     return final_agg.reset_index()
+
 
 def train_linear_regression_one_hot(df_agg, features, training_threshold, target='q50_priority_fee_per_gas'):
     df = pd.get_dummies(df_agg, columns=['tx_topology'], drop_first=True)
@@ -268,17 +298,19 @@ def generate_placeholder():
     return randomized_dict
 
 # Function to plot grouped bar chart
-def plot_grouped_bar(value_to_plot, q_pl, lr_pl, ml_pl):
-    tx_topologies = list(q_pl.keys())
+def plot_grouped_bar(value_to_plot, q_pl, lr_pl, ml_pl, ub_pl):
+    tx_topologies = list(set(q_pl.keys()) & set(ml_pl.keys()) & set(lr_pl.keys()) & set(ub_pl.keys()))
     q_values = [q_pl[tx][value_to_plot] for tx in tx_topologies]
     lr_values = [lr_pl[tx][value_to_plot] for tx in tx_topologies]
     ml_values = [ml_pl[tx][value_to_plot] for tx in tx_topologies]
+    ub_values = [ub_pl[tx][value_to_plot] for tx in tx_topologies]
 
     trace_q = go.Bar(x=tx_topologies, y=q_values, name='QH')
     trace_lr = go.Bar(x=tx_topologies, y=lr_values, name='LR')
-    trace_ml = go.Bar(x=tx_topologies, y=ml_values, name='ML')
+    trace_ml = go.Bar(x=tx_topologies, y=ml_values, name='RF')
+    trace_ub = go.Bar(x=tx_topologies, y=ub_values, name='UB')
 
-    fig = go.Figure(data=[trace_q, trace_lr, trace_ml])
+    fig = go.Figure(data=[trace_q, trace_lr, trace_ml, trace_ub])
     fig.update_layout(barmode='group')
 
     return fig
@@ -297,11 +329,15 @@ def agg_pf_per_gas_per_position(tx_data):
     return aggregated.reset_index()
 
 
-def train_random_forest_one_hot(df_agg, features, training_threshold, target='q50_priority_fee_per_gas', params={'n_estimators': 100, "max_depth": 10}):
-    df = pd.get_dummies(df_agg, columns=['tx_topology'], drop_first=True)
-    df['tx_topology'] = df_agg['tx_topology']
-    
-    feature_columns = features + [col for col in df.columns if 'tx_topology_' in col]
+def train_random_forest_one_hot(df_agg, features, training_threshold, target='q50_priority_fee_per_gas', params={'n_estimators': 100, "max_depth": 10}, use_topo=True):
+    if use_topo:
+        df = pd.get_dummies(df_agg, columns=['tx_topology'], drop_first=True)
+        df['tx_topology'] = df_agg['tx_topology']
+        
+        feature_columns = features + [col for col in df.columns if 'tx_topology_' in col]
+    else:
+        feature_columns = features
+        df = df_agg.copy()
     df[[c for c in df.columns if 'priority_fee_per_gas' in c]] *= 1e9
     
     missing_features = [col for col in feature_columns if col not in df.columns]
@@ -326,15 +362,30 @@ def train_random_forest_one_hot(df_agg, features, training_threshold, target='q5
     results_train['y_pred'] = y_train_pred * 1e-9
     results_train['y_true'] = y_train.reset_index(drop=True) * 1e-9
     results_train['block_number'] = train_data['block_number'].reset_index(drop=True)
-    results_train['tx_topology'] = train_data['tx_topology'].reset_index(drop=True)
+    if use_topo:
+        results_train['tx_topology'] = train_data['tx_topology'].reset_index(drop=True)
     
     results_test = pd.DataFrame()
     results_test['y_pred'] = y_test_pred * 1e-9
     results_test['y_true'] = y_test.reset_index(drop=True) * 1e-9
     results_test['block_number'] = test_data['block_number'].reset_index(drop=True)
-    results_test['tx_topology'] = test_data['tx_topology'].reset_index(drop=True)
+    if use_topo:
+        results_test['tx_topology'] = test_data['tx_topology'].reset_index(drop=True)
     
     return results_test, results_train, model
 
 def build_lag_features(target, lags):
     return [f'{target}_lag_{lag}' for lag in lags]
+
+def create_rolling_features(data, rolling_windows, features):
+    df = data.set_index('block_number')[features].copy()
+    output = [data.set_index('block_number')]
+    
+    for rolling_window in tqdm(rolling_windows):
+        mean_df = df.shift(1).rolling(rolling_window).mean().rename(columns={f: f + f'_mean_{rolling_window}' for f in features})
+        std_df = df.shift(1).rolling(rolling_window).std().rename(columns={f: f + f'_std_{rolling_window}' for f in features})
+        output.append(mean_df)
+        output.append(std_df)
+    
+    output = pd.concat(output, axis=1)
+    return output.dropna().reset_index()

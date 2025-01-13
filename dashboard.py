@@ -472,7 +472,7 @@ elif page == "Simulations":
     idxer = {'Avg Preconfirmed Error': 'avg_preconfirmed_errors', 'Eligible Transactions (%)': 'preconfirmations_eligible'}
     fig = plot_grouped_bar(idxer[value_to_plot], groups_quantile_metrics, groups_lr_metrics, groups_rf_metrics)
     st.plotly_chart(fig)
-        
+    
     st.header("Model Insights")
 
     lr_train_mae = mean_absolute_error(lr_results_train['y_true'], lr_results_train['y_pred'])
