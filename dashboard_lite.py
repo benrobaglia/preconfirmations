@@ -8,6 +8,7 @@ import pickle
 import zipfile
 
 DATA_PATH = "data/"
+st.set_page_config(page_title=None, page_icon=None, layout="centered", initial_sidebar_state="auto", menu_items=None)
 
 # Change the bin legend of the histogram (start to end instead of middle)
 # Mention the Sample size in the text
@@ -18,14 +19,38 @@ DATA_PATH = "data/"
 # Sidebar Navigation
 st.sidebar.image("logo.svg", width=200)
 st.sidebar.title("Navigation")
-pages = ["Presentation", "Bias Reducer", "Simulations"]
+pages = ["Overview", "Data Settings", "Simulation"]
 page = st.sidebar.radio("", pages)
 
 # Landing page
-if page == "Presentation":
-    st.title("📈 Preconfirmation Pricing Dashboard")
-    st.subheader("Developed by Chorus One")
+if page == "Overview":
+    
+    st.title("📈 Preconfirmation Pricing by Chorus One")
+    
+    # st.subheader("Developed by Chorus One")
 
+    st.subheader("How to use this dashboard?")
+    st.markdown("""
+                1. **Navigate** through the sidebar to access different sections.
+                2. **Adjust Parameters** in the Data Settings and Simulation pages to customize the analysis.
+                3. **View Results** and insights to understand the impact of your configurations.
+                4. **Download Data** to conduct your own analysis.
+
+                ### 🔍 **Key Features**
+                - 🛠️ **Estimator Bias Reducer**: Not all transactions are equal. Some can bias the estimators. 
+                With this feature, you can select the approach for **choosing which transactions** to include in the model, ensuring a more robust estimator with minimal bias.
+
+                - 📉 **Dynamic Fee Predictions**: Use machine learning models to predict **future priority fees**. 
+                These predictions help determine which transactions are worth preconfirming.
+
+                - 📊 **Customizable Estimators**: Explore preconfirmation pricing using multiple model approaches, 
+                including a **Quantile Heuristic**, **Linear Regression**, and **Machine Learning model**.
+
+                - ⚙️ **Interactive Configurations**: Adjust model parameters to see how they affect **priority fees, and preconfirmations**.
+
+                We invite you to explore the dashboard and leverage its features to enhance your understanding of preconfirmation pricing. Enjoy your journey!
+                """
+                )
     st.markdown("""
         ### 📘 **Introduction**
         **Preconfirmations** are a hot topic in Ethereum research aimed at improving the user experience.  
@@ -39,26 +64,11 @@ if page == "Presentation":
         Therefore, the primary focus of this dashboard is to provide accurate predictions for the **priority fee per gas unit**, which serves as a key input for any potential preconfirmation pricing strategy.
         """)
 
-    # Key Features
-    st.markdown("""
-    ### 🔍 **Key Features**
-    - 🛠️ **Estimator Bias Reducer**: Not all transactions are equal. Some can bias the estimators. 
-    With this feature, you can select the approach for **choosing which transactions** to include in the model, ensuring a more robust estimator with minimal bias.
-
-    - 📉 **Dynamic Fee Predictions**: Use machine learning models to predict **future priority fees**. 
-    These predictions help determine which transactions are worth preconfirming.
-
-    - 📊 **Customizable Estimators**: Explore preconfirmation pricing using multiple model approaches, 
-    including a **Quantile Heuristic**, **Linear Regression**, and **Machine Learning model**.
-
-    - ⚙️ **Interactive Configurations**: Adjust model parameters to see how they affect **priority fees, and preconfirmations**.
-
-    """)
 
 
-elif page == "Bias Reducer":
-    st.title('Estimator Bias Reducer')
-
+elif page == "Data Settings":
+    st.title('Data Settings')
+    st.subheader("Reducing the bias")
     st.markdown("""
                 The Priority Fee per Gas Unit is highly influenced by a transaction's position within the block (as shown in the interactive figure below).
                 To reduce estimator bias, we exclude outliers, especially those caused by "toxic flow" (cite paper link).
@@ -190,8 +200,8 @@ elif page == "Bias Reducer":
 
 
 # Model Configuration Page
-elif page == "Simulations":
-    st.title("Simulations")
+elif page == "Simulation":
+    st.title("Simulation")
 
     st.markdown(r"""
         This section allows testing of different model configurations to predict a **priority fee per gas unit (PF/GU) threshold** for pre-confirming Ethereum transactions. Simulations are pre-computed to ensure a smooth user experience.
