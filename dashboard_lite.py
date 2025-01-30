@@ -7,8 +7,11 @@ from sklearn.metrics import mean_absolute_error, r2_score
 import pickle
 import zipfile
 
-DATA_PATH = "data/"
-st.set_page_config(page_title=None, page_icon=None, layout="centered", initial_sidebar_state="auto", menu_items=None)
+st.set_page_config(page_title="Chorus One Preconf Pricing",
+                   page_icon="img/c1_img.png", 
+                   layout="centered", 
+                   initial_sidebar_state="auto", 
+                   menu_items=None)
 
 # Change the bin legend of the histogram (start to end instead of middle)
 # Mention the Sample size in the text
@@ -35,7 +38,7 @@ st.markdown(
 )
 
 # Sidebar Navigation
-st.sidebar.image("logo.svg", width=200)
+st.sidebar.image("img/logo.svg", width=200)
 st.sidebar.title("Navigation")
 pages = ["Overview", "Data Settings", "Simulation"]
 page = st.sidebar.radio("", pages)
