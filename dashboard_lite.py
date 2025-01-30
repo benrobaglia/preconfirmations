@@ -54,34 +54,10 @@ if page == "Overview":
                 3. **View Results** and insights to understand the impact of your configurations.
                 4. **Download Data** to conduct your own analysis.
 
-                ### 🔍 **Key Features**
-                - 🛠️ **Estimator Bias Reducer**: Not all transactions are equal. Some can bias the estimators. 
-                With this feature, you can select the approach for **choosing which transactions** to include in the model, ensuring a more robust estimator with minimal bias.
-
-                - 📉 **Dynamic Fee Predictions**: Use machine learning models to predict **future priority fees**. 
-                These predictions help determine which transactions are worth preconfirming.
-
-                - 📊 **Customizable Estimators**: Explore preconfirmation pricing using multiple model approaches, 
-                including a **Quantile Heuristic**, **Linear Regression**, and **Machine Learning model**.
-
-                - ⚙️ **Interactive Configurations**: Adjust model parameters to see how they affect **priority fees, and preconfirmations**.
-
-                We invite you to explore the dashboard and leverage its features to enhance your understanding of preconfirmation pricing. Enjoy your journey!
                 """
                 )
-    # st.markdown("""
-    #     ### 📘 **Introduction**
-    #     **Preconfirmations** are a hot topic in Ethereum research aimed at improving the user experience.  
-    #     A **preconfirmation** (or **preconf**) is a credible, signed commitment from an Ethereum block proposer guaranteeing that a specific transaction will be included in a future block.
 
-    #     However, **pricing preconfirmations is a complex problem**. One critical element in this process is the ability to estimate the **future priority fee (PF)**.  
-    #     If a transaction's PF is too low compared to future fees, preconfirming it may result in **a lower expected value for the builder and proposer**.  
-
-    #     Additionally, the **pricing mechanism for preconfirmations is still under discussion**, as the conditions for **slashing and penalties** have not yet been fully defined.  
-    #     This uncertainty makes it challenging to establish a reliable **P&L model** and conduct a realistic **backtest** since **preconfirmations are not live on Ethereum**.  
-    #     Therefore, the primary focus of this dashboard is to provide accurate predictions for the **priority fee per gas unit**, which serves as a key input for any potential preconfirmation pricing strategy.
-    #     """)
-
+    
     st.markdown("""
                 ### 📘 **Introduction**
 
@@ -98,6 +74,37 @@ if page == "Overview":
 
                 Therefore, the primary focus of this dashboard is to provide accurate predictions for the priority fee per gas unit, which serves as a key input for any potential preconfirmation pricing strategy.
                 """)
+
+    st.markdown("""
+                ### 🔍 **Key Features**
+                - 🛠️ **Estimator Bias Reducer**: Not all transactions are equal. Some can bias the estimators. 
+                With this feature, you can select the approach for **choosing which transactions** to include in the model, ensuring a more robust estimator with minimal bias.
+
+                - 📉 **Dynamic Fee Predictions**: Use machine learning models to predict **future priority fees**. 
+                These predictions help determine which transactions are worth preconfirming.
+
+                - 📊 **Customizable Estimators**: Explore preconfirmation pricing using multiple model approaches, 
+                including a **Quantile Heuristic**, **Linear Regression**, and **Machine Learning model**.
+
+                - ⚙️ **Interactive Configurations**: Adjust model parameters to see how they affect **priority fees, and preconfirmations**.
+
+                We invite you to explore the dashboard and leverage its features to enhance your understanding of preconfirmation pricing. Enjoy your journey!
+
+                """)
+
+    # st.markdown("""
+    #     ### 📘 **Introduction**
+    #     **Preconfirmations** are a hot topic in Ethereum research aimed at improving the user experience.  
+    #     A **preconfirmation** (or **preconf**) is a credible, signed commitment from an Ethereum block proposer guaranteeing that a specific transaction will be included in a future block.
+
+    #     However, **pricing preconfirmations is a complex problem**. One critical element in this process is the ability to estimate the **future priority fee (PF)**.  
+    #     If a transaction's PF is too low compared to future fees, preconfirming it may result in **a lower expected value for the builder and proposer**.  
+
+    #     Additionally, the **pricing mechanism for preconfirmations is still under discussion**, as the conditions for **slashing and penalties** have not yet been fully defined.  
+    #     This uncertainty makes it challenging to establish a reliable **P&L model** and conduct a realistic **backtest** since **preconfirmations are not live on Ethereum**.  
+    #     Therefore, the primary focus of this dashboard is to provide accurate predictions for the **priority fee per gas unit**, which serves as a key input for any potential preconfirmation pricing strategy.
+    #     """)
+
 
 
 elif page == "Data Settings":
