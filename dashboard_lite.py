@@ -87,7 +87,7 @@ if page == "Overview":
                 These predictions help determine which transactions are worth preconfirming.
 
                 - 📊 **Customizable Estimators**: Explore preconfirmation pricing using multiple model approaches, 
-                including a **Quantile Heuristic**, **Linear Regression**, and **Machine Learning model**.
+                including the **GETH SuggestPrice function**, **Linear Regression**, and **Machine Learning model**.
 
                 - ⚙️ **Interactive Configurations**: Adjust model parameters to see how they affect **priority fees, and preconfirmations**.
 
@@ -256,10 +256,10 @@ elif page == "Simulation":
         We denote $\rho_{tx}(T) = \frac{PF_{tx}}{GU_{tx}}- T$ the preconfirmation error. The goal is to accurately estimate $T$ to minimize pre-confirmation errors while maximizing the number of preconfirmed transactions.
 
         ### **Models**
-        - **Quantile Heuristic (QH)**: Uses a quantile of past PF/GU values as the threshold.
+        - **GETH SuggestPrice function (GETH)**: Uses the [gas oracle of GETH](https://github.com/ethereum/go-ethereum/blob/69c52bde3f5e48a3b74264bf4854e9768ede75b2/eth/gasprice/gasprice.go) as the threshold.
         - **Linear Regression (LR)**: Predicts $T$ using a linear model of historical transaction data.
         - **Random Forest (RF)**: Uses an ensemble of decision trees to capture non-linear patterns.
-        - **Upper Bound (UB)**: An oracle model that uses the true future PF/GU values. This baseline gives an upper limit on what a model can acheive.
+        - **Upper Bound (UB)**: An oracle model that uses the true future PF/GU values. This baseline gives an upper limit on what a model can achieve.
         ### **Metrics**
         - **Mean Absolute Error (MAE)**: Measures the average deviation between predicted $\hat{T}$ and actual $T$:
 
@@ -305,17 +305,17 @@ elif page == "Simulation":
         if key not in st.session_state:
             st.session_state[key] = value
 
-    tabs = st.tabs(["Quantile Heuristic", "Linear Regression",
+    tabs = st.tabs(["GETH SuggestPrice function", "Linear Regression",
                    "Random Forest Regression"])
 
     # Quantile Heuristic Configuration
     with tabs[0]:
-        st.subheader("Configure Quantile Heuristic")
+        st.subheader("Configure GETH SuggestPrice function")
         quantile = st.selectbox(
-            "Select Quantile", quantile_values, index=quantile_values.tolist().index(50))
+            "Select Percentile", quantile_values, index=quantile_values.tolist().index(50))
         max_window = st.selectbox("Select Maximum Window Size", quantile_lag_values, index=quantile_lag_values.index(10))
 
-        if st.button("Save Configuration for Quantile Heuristic"):
+        if st.button("Save Configuration for GETH function"):
             st.session_state['quantile'] = quantile
             st.session_state['max_window'] = max_window
             st.success(f"Configuration saved! Quantile: {quantile}, Max Window: {max_window}")
@@ -455,7 +455,7 @@ elif page == "Simulation":
     # print(len(groups_ub_metrics))
 
     global_results = pd.DataFrame(global_results, index=[
-                                  'Quantile Heuristic', 'Linear Regression', 'Random Forest', 'Upper Bound (Oracle)'])
+                                  'GETH SuggestPrice', 'Linear Regression', 'Random Forest', 'Upper Bound (Oracle)'])
     global_results.drop(columns=['preconf_value'], inplace=True)
     global_results.rename(columns={'mae': 'Mean Absolute Error', "avg_preconfirmed_errors": 'Avg Preconfirmed Error',
                           'preconfirmations_eligible': "Eligible Transactions (%)"}, inplace=True)

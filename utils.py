@@ -337,7 +337,7 @@ def plot_grouped_bar(value_to_plot, q_pl, lr_pl, ml_pl, ub_pl):
     ml_values = [ml_pl[tx][value_to_plot] for tx in tx_topologies]
     ub_values = [ub_pl[tx][value_to_plot] for tx in tx_topologies]
 
-    trace_q = go.Bar(x=tx_topologies, y=q_values, name='QH')
+    trace_q = go.Bar(x=tx_topologies, y=q_values, name='GETH')
     trace_lr = go.Bar(x=tx_topologies, y=lr_values, name='LR')
     trace_ml = go.Bar(x=tx_topologies, y=ml_values, name='RF')
     trace_ub = go.Bar(x=tx_topologies, y=ub_values, name='UB')
